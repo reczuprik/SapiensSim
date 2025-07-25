@@ -1,0 +1,21 @@
+# CODE_BLOCK_ID: SapiensSim-v0.3-pyproject.toml
+
+[build-system]
+# These are the build tools pip will use to install our project
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# This is the "ID card" for our project
+name = "sapiens-sim"
+version = "0.1.0"
+authors = [
+  { name="Your Name", email="your@email.com" },
+]
+description = "A simulation of Sapiens based on Harari's book."
+requires-python = ">=3.8"
+
+[tool.setuptools]
+# This is the most important part for our src layout.
+# It tells setuptools to find our package inside the 'src' folder.
+package-dir = {"" = "src"}

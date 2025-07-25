@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+src/sapiens_sim/__init__.py
+src/sapiens_sim/config.py
+src/sapiens_sim/main.py
+src/sapiens_sim.egg-info/PKG-INFO
+src/sapiens_sim.egg-info/SOURCES.txt
+src/sapiens_sim.egg-info/dependency_links.txt
+src/sapiens_sim.egg-info/top_level.txt
+src/sapiens_sim/core/__init__.py
+src/sapiens_sim/core/agents.py
+src/sapiens_sim/core/evolution.py
+src/sapiens_sim/core/simulation.py
+src/sapiens_sim/core/world.py
+tests/test_agent.py
+tests/test_world.py
