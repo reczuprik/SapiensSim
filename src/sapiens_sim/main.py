@@ -1,5 +1,5 @@
 # FILE_NAME: src/sapiens_sim/main.py
-# CODE_BLOCK_ID: SapiensSim-v0.3-main.py
+# CODE_BLOCK_ID: SapiensSim-v0.4-main-FIXED.py
 
 import time
 import numpy as np
@@ -17,7 +17,6 @@ def run_simulation():
     print("--- SapiensSim Initialization ---")
     
     # --- Setup ---
-    # Create the world and agent populations using our functions
     world = create_world(config.WORLD_WIDTH, config.WORLD_HEIGHT)
     agents = create_agents(
         count=config.AGENT_INITIAL_COUNT,
@@ -35,18 +34,20 @@ def run_simulation():
     
     # --- Main Loop ---
     for tick in range(config.SIMULATION_TICKS):
-        # This is the core of our simulation.
-        # We pass the agents array and config values to our fast, Numba-jitted function.
         agents = simulation_tick(
             agents=agents,
+            # Pass the new arguments from our config
+            world_height=config.WORLD_HEIGHT,
+            world_width=config.WORLD_WIDTH,
+            move_speed=config.MOVE_SPEED,
             hunger_rate=config.HUNGER_RATE,
             starvation_rate=config.STARVATION_RATE
         )
 
-        # We can add logging here to see progress, but for performance,
-        # it's best to do it infrequently.
         if (tick + 1) % 100 == 0:
             print(f"Tick {tick+1}/{config.SIMULATION_TICKS} complete.")
+            # ADD THIS LINE FOR DEBUGGING:
+            print(f"  Position of agent 0: {agents[0]['pos']}")
 
     end_time = time.time()
     
@@ -59,12 +60,8 @@ def run_simulation():
     print(f"\nInitial total health: {initial_total_health:.2f}")
     print(f"Final total health:   {final_total_health:.2f}")
     
-    # Count how many agents are still "alive" (health > 0)
     survivors = np.sum(agents['health'] > 0)
     print(f"Survivors: {survivors}/{config.AGENT_INITIAL_COUNT}")
 
-# This is a standard Python construct. If you execute this file directly
-# (e.g., python src/sapiens_sim/main.py), it will call run_simulation().
-# If you import it into another file, it won't run automatically.
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_simulation()

@@ -1,5 +1,5 @@
 # FILE_NAME: src/sapiens_sim/config.py
-# CODE_BLOCK_ID: SapiensSim-v0.3-config.py
+# CODE_BLOCK_ID: SapiensSim-v0.4-config.py
 
 # --- World Configuration ---
 WORLD_WIDTH = 200
@@ -7,6 +7,7 @@ WORLD_HEIGHT = 200
 
 # --- Agent Configuration ---
 AGENT_INITIAL_COUNT = 150
+MOVE_SPEED = 1.0 # Max distance an agent can move in one tick.
 
 # --- Simulation Configuration ---
 SIMULATION_TICKS = 1000 # The total number of steps the simulation will run for.
