@@ -1,11 +1,12 @@
+# FILE_NAME: requirements.txt
+# CODE_BLOCK_ID: SapiensSim-v0.2-requirements.txt
+
 # Core Simulation Libraries
 numpy
 numba
+pytest
 
 # Data Handling & Analysis (for later)
 pandas
 matplotlib
 plotly
-
-# Optional for code quality
-# ruff
