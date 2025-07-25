@@ -1,0 +1,11 @@
+# Core Simulation Libraries
+numpy
+numba
+
+# Data Handling & Analysis (for later)
+pandas
+matplotlib
+plotly
+
+# Optional for code quality
+# ruff

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+
+# Data and Outputs - VERY IMPORTANT
+# We don't want to commit our large simulation output files.
+data/*
+!data/.gitkeep
+
+# Notebook checkpoints
+.ipynb_checkpoints
