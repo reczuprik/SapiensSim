@@ -1,16 +1,19 @@
 # FILE_NAME: src/sapiens_sim/core/agents.py
-# CODE_BLOCK_ID: SapiensSim-v0.2-agents.py
+# CODE_BLOCK_ID: SapiensSim-v0.8-agents.py
+
 
 import numpy as np
+from .. import config
 
 # Define sex types as integer constants for performance
 SEX_MALE = 0
 SEX_FEMALE = 1
-
 def create_agents(
     count: int,
+    max_population: int,
     world_width: int,
     world_height: int,
+    min_reproduction_age: int, # <-- THE FIX IS HERE
     initial_health: float = 100.0,
     initial_hunger: float = 0.0
 ) -> np.ndarray:
@@ -32,43 +35,44 @@ def create_agents(
     # We use precise types (like float32, int32) for memory efficiency.
     agent_dtype = np.dtype([
         ('id', np.int32),
-        # Position is a 2-element array for [y, x] coordinates.
         ('pos', np.float32, (2,)),
         ('health', np.float32),
         ('hunger', np.float32),
         ('age', np.int32),
         ('sex', np.int8),
         ('is_fertile', bool),
-        ('is_pregnant', np.int32), # Will hold ticks remaining
+        ('is_pregnant', np.int32),
         ('mating_desire', np.float32),
-        # Mating preference vector will be added in a future step
     ])
 
     # Create the 1D array, initialized with zeros for all fields.
-    agents = np.zeros(count, dtype=agent_dtype)
+    agents = np.zeros(max_population, dtype=agent_dtype)
 
     # --- Initialize Agent Properties ---
-    
+    active_agents = agents[:count]
+
     # Assign unique IDs from 0 to count-1
-    agents['id'] = np.arange(count, dtype=np.int32)
+    active_agents['id'] = np.arange(count, dtype=np.int32)
     
     # Assign random starting positions within the world boundaries
-    agents['pos'][:, 0] = np.random.uniform(0, world_height, size=count) # Y-coordinates
-    agents['pos'][:, 1] = np.random.uniform(0, world_width, size=count)  # X-coordinates
+    active_agents['pos'][:, 0] = np.random.uniform(0, world_height, size=count) # Y-coordinates
+    active_agents['pos'][:, 1] = np.random.uniform(0, world_width, size=count)  # X-coordinates
 
     # Set initial biological states
-    agents['health'] = initial_health
-    agents['hunger'] = initial_hunger
-    agents['age'] = np.random.randint(18, 40, size=count) # Start as adults
+    active_agents['health'] = initial_health
+    active_agents['hunger'] = initial_hunger
+    active_agents['age'] = np.random.randint(15, 50, size=count) # Start as adults
     
     # Assign sex randomly (approx. 50/50 split)
-    agents['sex'] = np.random.choice([SEX_MALE, SEX_FEMALE], size=count)
+    active_agents['sex'] = np.random.choice([SEX_MALE, SEX_FEMALE], size=count)
     
     # Set fertility based on age (for now, all adults are fertile)
-    agents['is_fertile'] = True
+    active_agents['is_fertile'] = active_agents['age'] >= min_reproduction_age
 
     print(f"{count} agents created.")
-    print(f"Male count: {np.sum(agents['sex'] == SEX_MALE)}")
-    print(f"Female count: {np.sum(agents['sex'] == SEX_FEMALE)}")
+    print(f"Male count: {np.sum(active_agents['sex'] == SEX_MALE)}")
+    print(f"Female count: {np.sum(active_agents['sex'] == SEX_FEMALE)}")
+    print(f"Fertile agents: {np.sum(active_agents['is_fertile'])}")
+    print(f"{max_population} agent slots created. {count} are active.")
 
     return agents
