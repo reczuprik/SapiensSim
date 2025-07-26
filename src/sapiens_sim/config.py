@@ -1,39 +1,38 @@
 # FILE_NAME: src/sapiens_sim/config.py
-# CODE_BLOCK_ID: SapiensSim-v0.8-config.py
-
 
 # --- World Configuration ---
 WORLD_WIDTH = 200
 WORLD_HEIGHT = 200
-MAX_POPULATION_SIZE = 500
+RESOURCE_REGROWTH_RATE = 0.15
 
+# --- Population & Simulation ---
+MAX_POPULATION_SIZE = 300
+AGENT_INITIAL_COUNT = 100
+SIMULATION_TICKS = 5000
+CULLING_INTERVAL = 100 # How often to clean up dead agents
 
-# --- Agent Configuration ---
-AGENT_INITIAL_COUNT = 150
-MOVE_SPEED = 1.0 # Max distance an agent can move in one tick.
-
-# --- Simulation Configuration ---
-SIMULATION_TICKS = 1000 # The total number of steps the simulation will run for.
-
-# --- Biological Rates ---
-HUNGER_RATE = 0.5
+# --- Agent Biology & Reproduction ---
+MOVE_SPEED = 1.0
+HUNGER_RATE = 0.3
 STARVATION_RATE = 1.0
-# NEW PARAMETERS FOR FORAGING
-FORAGING_THRESHOLD = 30.0 # Hunger level at which agents start seeking food.
-EAT_RATE = 20.0 # Amount of hunger restored when eating.
-RESOURCE_REGROWTH_RATE = 0.1 # Amount of resources that regrow on a tile each tick.
-
-
-# --- Reproduction Rates ---
+EAT_RATE = 25.0
+FORAGING_THRESHOLD = 30.0  # <-- THE MISSING PARAMETER
 MIN_REPRODUCTION_AGE = 18
-REPRODUCTION_RATE = 0.01 # 1% chance per tick if conditions are met
-GESTATION_PERIOD = 20 # Ticks for a pregnancy
-REPRODUCTION_THRESHOLD = 20.0 # Max hunger level to be able to reproduce
-MATING_DESIRE_RATE = 0.2 # How quickly mating desire builds up per tick
-
-
+REPRODUCTION_RATE = 0.02
+GESTATION_PERIOD = 20
+REPRODUCTION_THRESHOLD = 40.0 # Max hunger level to be able to reproduce
+MATING_DESIRE_RATE = 0.2
 
 # --- Newborn Configuration ---
 NEWBORN_HEALTH = 50.0
 NEWBORN_HUNGER = 30.0
 MOTHER_HEALTH_PENALTY = 20.0
+
+# --- Fitness Function Weights ---
+FITNESS_SURVIVAL = 0.01
+FITNESS_EATING = 0.1
+FITNESS_REPRODUCTION = 2.0
+FITNESS_HEALTH = 0.05
+FITNESS_AGE = 0.02
+FITNESS_STARVATION_PENALTY = -0.1
+FITNESS_DEATH_PENALTY = -5.0

@@ -1,52 +1,12 @@
 # FILE_NAME: src/sapiens_sim/core/simulation.py
-# CODE_BLOCK_ID: SapiensSim-v0.8-simulation.py
+# CODE_BLOCK_ID: SapiensSim-NEAT-v1.0-simulation.py
 
 import numpy as np
 from numba import jit
-@jit(nopython=True)
-def _handle_birth(
-    agents: np.ndarray,
-    mother_index: int,
-    next_agent_id: int,
-    newborn_health: float,
-    newborn_hunger: float,
-    mother_health_penalty: float
-) -> int:
-    """
-    Handles the logic of a birth, activating an inactive agent slot.
-    Returns the next available agent ID.
-    """
-    # Find the first inactive agent slot
-    for i in range(len(agents)):
-        if agents[i].health <= 0:
-            # --- ACTIVATE NEWBORN ---
-            newborn = agents[i]
-            newborn.id = next_agent_id
-            newborn.health = newborn_health
-            newborn.hunger = newborn_hunger  # Set base hunger value
-            newborn.age = 0
-            newborn.sex = np.random.choice(np.array([0, 1], dtype=np.int8)) # Must pass array to choice
-            newborn.is_fertile = False
-            newborn.is_pregnant = 0
-            newborn.mating_desire = 0
-            
-            # Place newborn next to the mother with a slight offset
-            mother_pos = agents[mother_index].pos
-            newborn.pos[0] = mother_pos[0] + np.random.randn()
-            newborn.pos[1] = mother_pos[1] + np.random.randn()
+from .agent_manager import AgentManager, SEX_FEMALE
 
-            # --- PENALIZE MOTHER ---
-            agents[mother_index].health -= mother_health_penalty
-
-            # Return the next ID to be used
-            return next_agent_id + 1
-            
-    # If no inactive slots are found, return the current ID (population is full)
-    return next_agent_id
-
-@jit(nopython=True, cache=True)
 def simulation_tick(
-    agents: np.ndarray,
+    agent_population: AgentManager,
     world: np.ndarray,
     next_agent_id: int,
     move_speed: float,
@@ -63,155 +23,252 @@ def simulation_tick(
     newborn_health: float,
     newborn_hunger: float,
     mother_health_penalty: float
-):
+) -> tuple:
     """
-    Executes one tick of the simulation, including foraging, movement, and biology.
+    Enhanced simulation tick that uses NEAT brains for agent decision making.
+    This version follows a Think -> Act -> Update State logical flow.
     """
+    agents = agent_population.agents
     world_height, world_width = world.shape
 
-    # --- WORLD UPDATE ---
-    # Explicit loop for Numba compatibility
-    for y in range(world_height):
-        for x in range(world_width):
-            world[y, x].resources += resource_regrowth_rate
-            if world[y, x].resources > 100.0:
-                world[y, x].resources = 100.0
-
-    # --- AGENT UPDATE LOOP ---
-    # Track which agents are born this tick
+    _update_world_resources(world, resource_regrowth_rate)
+    
     born_this_tick = np.zeros(len(agents), dtype=np.bool_)
-
+ # --- PHASE 1: BIRTHS ---
     for i in range(len(agents)):
         agent = agents[i]
-
-        if agent.health <= 0:
-            continue
-
-        # Skip aging and other updates for newborns in their birth tick
-        if not born_this_tick[i]:
-            # --- AGING and FERTILITY ---
-            agent.age += 1 # Agents age each tick
-            if not agent.is_fertile and agent.age >= min_reproduction_age:
-                agent.is_fertile = True
-            
-        # --- GESTATION ---
-        if agent.is_pregnant > 0:
-            agent.is_pregnant -= 1
-            if agent.is_pregnant == 0:
-                # Mark the newborn as born this tick
-                prev_next_agent_id = next_agent_id
-                next_agent_id = _handle_birth(
-                    agents, i, next_agent_id,
-                    newborn_health, newborn_hunger, mother_health_penalty
-                )
-                # Find and mark the newborn
+        if agent['health'] > 0 and agent['is_pregnant'] > 0:
+            agent['is_pregnant'] -= 1
+            if agent['is_pregnant'] == 0 and agent['sex'] == SEX_FEMALE:
+                father_idx = -1
                 for j in range(len(agents)):
-                    if agents[j].id == prev_next_agent_id:
-                        born_this_tick[j] = True
+                    if agents[j]['health'] > 0 and agents[j]['id'] == agent['partner_id']:
+                        father_idx = j
                         break
+                
+                father_idx = i if father_idx == -1 else father_idx
 
-        # Skip biology updates for newborns in their birth tick
-        if born_this_tick[i]:
+                offspring_pos = agent['pos'] + np.random.randn(2)
+                offspring_idx = agent_population.create_offspring(
+                    i, father_idx, next_agent_id, offspring_pos
+                )
+                
+                # Simplified logic: create_offspring now handles the health penalty.
+                if offspring_idx != -1:
+                    next_agent_id += 1
+                    agent['partner_id'] = -1
+
+    # --- PHASE 2: AGENT THINK/ACT/UPDATE ---
+    for i in range(len(agents)):
+        agent = agents[i]
+        
+        # An agent with age=0 is a newborn and does nothing for one tick.
+        if agent['health'] <= 0 or agent['age'] == 0:
             continue
 
-        # --- MATING DESIRE ---
-        # Desire increases for fertile, non-pregnant, healthy agents
-        if agent.is_fertile and not agent.is_pregnant and agent.hunger < reproduction_threshold:
-            agent.mating_desire += mating_desire_rate
-            if agent.mating_desire > 100.0:
-                agent.mating_desire = 100.0
+        # 1. THINK
+        decision = agent_population.make_decision(i, world, agents)
 
-        # --- REPRODUCTION (Symmetrical Search) ---
-        # An agent with high desire will actively seek a mate
-        if agent.is_fertile and not agent.is_pregnant and agent.mating_desire > 80.0:
-            for j in range(len(agents)):
-                if i == j: continue
-                
-                partner = agents[j]
-                # Check if partner is a suitable mate (opposite sex, also fertile and ready)
-                if (
-                    partner.health > 0 and
-                    agent.sex != partner.sex and
-                    partner.is_fertile and
-                    not partner.is_pregnant and
-                    partner.mating_desire > 80.0
-                ):
-                    dist_sq = (agent.pos[0] - partner.pos[0])**2 + (agent.pos[1] - partner.pos[1])**2
-                    if dist_sq < 25: # If within range
-                        if np.random.rand() < reproduction_rate:
-                            # --- SUCCESSFUL MATING ---
-                            # Identify the female
-                            if agent.sex == 1: # agent 'i' is female
-                                agent.is_pregnant = gestation_period
-                            else: # partner 'j' is female
-                                partner.is_pregnant = gestation_period
-                            
-                            # Reset desire for BOTH partners
-                            agent.mating_desire = 0
-                            partner.mating_desire = 0
-                            
-                            break # Agent 'i' has mated, stop searching
+        # 2. ACT (Movement, Eating, Conception)
+        # ... (This logic is correct and remains unchanged) ...
         direction_y, direction_x = 0.0, 0.0
-
-        # --- BEHAVIOR ---
-        if agent.hunger > foraging_threshold:
-            # FORAGE: Find nearest food
-            best_food_y, best_food_x = -1, -1
-            min_dist_sq = -1
-            for y in range(world_height):
-                for x in range(world_width):
-                    if world[y, x].resources > 10:
-                        dist_sq = (agent.pos[0] - y)**2 + (agent.pos[1] - x)**2
-                        if min_dist_sq == -1 or dist_sq < min_dist_sq:
-                            min_dist_sq = dist_sq
-                            best_food_y, best_food_x = y, x
-            
-            if best_food_y != -1:
-                direction_y = best_food_y - agent.pos[0]
-                direction_x = best_food_x - agent.pos[1]
+        if decision['seek_food'] > 0.5 and agent['hunger'] > foraging_threshold:
+            food_direction = _get_food_direction(agent, world)
+            direction_y = 0.7 * food_direction[0] + 0.3 * decision['move_y']
+            direction_x = 0.7 * food_direction[1] + 0.3 * decision['move_x']
+            if np.dot([direction_y, direction_x], food_direction) > 0:
+                agent_population.update_fitness(i, 0.1)
+        
+        elif decision['seek_mate'] > 0.5 and agent['mating_desire'] > 50.0:
+            mate_direction = _get_mate_direction(i, agents)
+            direction_y = 0.6 * mate_direction[0] + 0.4 * decision['move_y']
+            direction_x = 0.6 * mate_direction[1] + 0.4 * decision['move_x']
+            if agent['mating_desire'] > 80.0:
+                agent_population.update_fitness(i, 0.05)
+        
+        elif decision['rest'] > 0.7:
+            direction_y = 0.1 * decision['move_y']
+            direction_x = 0.1 * decision['move_x']
+            if agent['health'] < 90.0:
+                agent['health'] += 0.5
+                agent_population.update_fitness(i, 0.02)
         else:
-            # WANDER: Move randomly
-            direction_y = np.random.randn()
-            direction_x = np.random.randn()
+            direction_y = decision['move_y']
+            direction_x = decision['move_x']
 
-        # --- MOVEMENT ---
-        norm = np.sqrt(direction_y**2 + direction_x**2)
-        if norm > 0:
-            direction_y /= norm
-            direction_x /= norm
+        _move_agent(agent, direction_y, direction_x, move_speed, world_height, world_width)
+        eaten_amount = _handle_eating(agent, world, eat_rate)
+        if eaten_amount > 0:
+            reward = eaten_amount / eat_rate * (1.0 + agent['hunger'] / 100.0)
+            agent_population.update_fitness(i, reward * 0.1)
+
+        if (agent['is_fertile'] and not agent['is_pregnant'] and 
+            agent['mating_desire'] > 80.0 and decision['seek_mate'] > 0.6):
             
-        agent.pos[0] += direction_y * move_speed
-        agent.pos[1] += direction_x * move_speed
+            mate_idx = _find_suitable_mate(i, agents)
+            if mate_idx != -1 and np.random.rand() < reproduction_rate:
+                if agent['sex'] == SEX_FEMALE:
+                    female_agent = agent
+                    father_id = agents[mate_idx]['id']
+                else:
+                    female_agent = agents[mate_idx]
+                    father_id = agent['id']
+                female_agent['is_pregnant'] = gestation_period
+                female_agent['partner_id'] = father_id
+                agent['mating_desire'] = 0
+                agents[mate_idx]['mating_desire'] = 0
+                agent_population.update_fitness(i, 2.0)
+                agent_population.update_fitness(mate_idx, 2.0)
 
-        # Boundary check using Numba-friendly explicit if-statements
-        # THIS IS THE FIX
-        if agent.pos[0] < 0:
-            agent.pos[0] = 0
-        elif agent.pos[0] > world_height - 1:
-            agent.pos[0] = world_height - 1
+        # 3. UPDATE STATE (Biology, Age, Fitness)
+        _update_agent_biology(agent, hunger_rate, starvation_rate)
 
-        if agent.pos[1] < 0:
-            agent.pos[1] = 0
-        elif agent.pos[1] > world_width - 1:
-            agent.pos[1] = world_width - 1
+        if agent['is_fertile'] and not agent['is_pregnant'] and agent['hunger'] < reproduction_threshold:
+            agent['mating_desire'] += mating_desire_rate
+            if agent['mating_desire'] > 100.0:
+                agent['mating_desire'] = 100.0
 
-        # --- EATING ---
-        tile_y, tile_x = int(agent.pos[0]), int(agent.pos[1])
-        if world[tile_y, tile_x].resources > 0:
-            eaten_amount = min(world[tile_y, tile_x].resources, eat_rate)
-            world[tile_y, tile_x].resources -= eaten_amount
-            agent.hunger -= eaten_amount
-            if agent.hunger < 0: agent.hunger = 0
+        agent['age'] += 1
+        if not agent['is_fertile'] and agent['age'] >= min_reproduction_age:
+            agent['is_fertile'] = True
 
-        # --- BIOLOGY ---
-        agent.hunger += hunger_rate
-        if agent.hunger > 100.0:
-            agent.hunger = 100.0
-            
-        if agent.hunger > 90.0:
-            agent.health -= starvation_rate
-        if agent.health < 0:
-            agent.health = 0
+        agent_population.update_fitness(i, 0.01)
+        if agent['health'] > 75.0: agent_population.update_fitness(i, 0.05)
+        if agent['age'] > 50: agent_population.update_fitness(i, 0.02)
+        if agent['hunger'] > 90.0: agent_population.update_fitness(i, -0.1)
+        if agent['health'] <= 0: agent_population.update_fitness(i, -5.0)
+    
+    # We must age all living agents *after* the main loop, so newborns
+    # from this tick become age 1 for the next tick.
+    for i in range(len(agents)):
+        if agents[i]['health'] > 0:
+            agents[i]['age'] += 1
+
             
     return agents, world, next_agent_id
-    return agents, world, next_agent_id
+@jit(nopython=True)
+def _update_world_resources(world: np.ndarray, regrowth_rate: float):
+    """Update world resources (Numba optimized)"""
+    world_height, world_width = world.shape
+    for y in range(world_height):
+        for x in range(world_width):
+            world[y, x]['resources'] += regrowth_rate
+            if world[y, x]['resources'] > 100.0:
+                world[y, x]['resources'] = 100.0
+
+def _get_food_direction(agent: np.ndarray, world: np.ndarray) -> np.ndarray:
+    """Get direction to nearest food source"""
+    agent_pos = agent['pos']
+    world_height, world_width = world.shape
+    
+    best_direction = np.array([0.0, 0.0])
+    min_dist_sq = float('inf')
+    
+    # Sample subset of world for performance
+    for _ in range(50):  # Check 50 random tiles
+        y = np.random.randint(0, world_height)
+        x = np.random.randint(0, world_width)
+        
+        if world[y, x]['resources'] > 10:
+            dist_sq = (agent_pos[0] - y)**2 + (agent_pos[1] - x)**2
+            if dist_sq < min_dist_sq:
+                min_dist_sq = dist_sq
+                direction = np.array([y - agent_pos[0], x - agent_pos[1]])
+                norm = np.sqrt(direction[0]**2 + direction[1]**2)
+                if norm > 0:
+                    best_direction = direction / norm
+    
+    return best_direction
+
+def _get_mate_direction(agent_idx: int, agents: np.ndarray) -> np.ndarray:
+    """Get direction to nearest suitable mate"""
+    agent = agents[agent_idx]
+    best_direction = np.array([0.0, 0.0])
+    min_dist_sq = float('inf')
+    
+    for i, other_agent in enumerate(agents):
+        if (i != agent_idx and other_agent['health'] > 0 and 
+            other_agent['sex'] != agent['sex'] and other_agent['is_fertile'] and
+            not other_agent['is_pregnant'] and other_agent['mating_desire'] > 50.0):
+            
+            dist_sq = ((agent['pos'][0] - other_agent['pos'][0])**2 + 
+                      (agent['pos'][1] - other_agent['pos'][1])**2)
+            
+            if dist_sq < min_dist_sq:
+                min_dist_sq = dist_sq
+                direction = other_agent['pos'] - agent['pos']
+                norm = np.sqrt(direction[0]**2 + direction[1]**2)
+                if norm > 0:
+                    best_direction = direction / norm
+    
+    return best_direction
+
+def _find_suitable_mate(agent_idx: int, agents: np.ndarray) -> int:
+    """Find a suitable mate within range"""
+    agent = agents[agent_idx]
+    
+    for i, other_agent in enumerate(agents):
+        if (i != agent_idx and other_agent['health'] > 0 and 
+            other_agent['sex'] != agent['sex'] and other_agent['is_fertile'] and
+            not other_agent['is_pregnant'] and other_agent['mating_desire'] > 80.0):
+            
+            dist_sq = ((agent['pos'][0] - other_agent['pos'][0])**2 + 
+                      (agent['pos'][1] - other_agent['pos'][1])**2)
+            
+            if dist_sq < 25:  # Within mating range
+                return i
+    
+    return -1
+
+@jit(nopython=True)
+def _move_agent(agent: np.ndarray, direction_y: float, direction_x: float, 
+                move_speed: float, world_height: int, world_width: int):
+    """Move an agent (Numba optimized)"""
+    # Normalize direction
+    norm = np.sqrt(direction_y**2 + direction_x**2)
+    if norm > 0:
+        direction_y /= norm
+        direction_x /= norm
+    
+    # Apply movement
+    agent['pos'][0] += direction_y * move_speed
+    agent['pos'][1] += direction_x * move_speed
+    
+    # Boundary checking
+    if agent['pos'][0] < 0:
+        agent['pos'][0] = 0
+    elif agent['pos'][0] > world_height - 1:
+        agent['pos'][0] = world_height - 1
+    
+    if agent['pos'][1] < 0:
+        agent['pos'][1] = 0
+    elif agent['pos'][1] > world_width - 1:
+        agent['pos'][1] = world_width - 1
+
+@jit(nopython=True)
+def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float) -> float:
+    """Handle agent eating (Numba optimized)"""
+    tile_y, tile_x = int(agent['pos'][0]), int(agent['pos'][1])
+    
+    if world[tile_y, tile_x]['resources'] > 0:
+        eaten_amount = min(world[tile_y, tile_x]['resources'], eat_rate)
+        world[tile_y, tile_x]['resources'] -= eaten_amount
+        agent['hunger'] -= eaten_amount
+        if agent['hunger'] < 0:
+            agent['hunger'] = 0
+        return eaten_amount
+    
+    return 0.0
+
+@jit(nopython=True)
+def _update_agent_biology(agent: np.ndarray, hunger_rate: float, starvation_rate: float):
+    """Update agent's biological state (Numba optimized)"""
+    agent['hunger'] += hunger_rate
+    if agent['hunger'] > 100.0:
+        agent['hunger'] = 100.0
+    
+    if agent['hunger'] > 90.0:
+        agent['health'] -= starvation_rate
+    
+    if agent['health'] < 0:
+        agent['health'] = 0
