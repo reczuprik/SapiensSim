@@ -31,6 +31,10 @@ def run_simulation():
     print(f"Running for {config.SIMULATION_TICKS} ticks.")
 
     start_time = time.time()
+    # --- Stats Header ---
+    print("\n" + "="*80)
+    print(" TICK | POP | AVG FIT | MAX FIT | AVG AGE | MAX AGE | AVG GEN | BRAIN (N/C)")
+    print("="*80)
 
     # --- Main Loop ---
     for tick in range(config.SIMULATION_TICKS):
@@ -61,8 +65,21 @@ def run_simulation():
 
         # --- Logging ---
         if (tick + 1) % 100 == 0:
-            active_agents = np.sum(agents['health'] > 0)
-            print(f"Tick {tick+1}/{config.SIMULATION_TICKS} | Population: {active_agents}")
+            stats = agent_manager.get_population_stats()
+            if stats['population'] > 0:
+                print(
+                    f" {tick+1:<4} |"
+                    f" {stats['population']:<3} |"
+                    f" {stats['avg_fitness']:<7.2f} |"
+                    f" {stats['max_fitness']:<7.2f} |"
+                    f" {stats['avg_age']:<7.1f} |"
+                    f" {stats['max_age']:<7} |"
+                    f" {stats['avg_generation']:<7.1f} |"
+                    f" {stats['avg_nodes']:.1f}/{stats['avg_connections']:.1f}"
+                )
+            else:
+                print(f" {tick+1:<4} | EXTINCTION")
+                break # Stop the simulation if everyone is dead
 
     end_time = time.time()
 

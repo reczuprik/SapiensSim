@@ -321,3 +321,39 @@ class AgentManager:
         
         # Note: We don't need to touch the numpy array data (health, pos, etc.)
         # The create_offspring function will overwrite it completely.
+    # In class AgentManager:
+
+    def get_population_stats(self) -> dict:
+        """
+        Analyzes the current population and returns a dictionary of key statistics.
+        """
+        active_indices = np.where(self.agents['health'] > 0)[0]
+        
+        if len(active_indices) == 0:
+            return {'population': 0}
+        
+        active_agents = self.agents[active_indices]
+        
+        # --- Genetic Stats ---
+        generations = active_agents['generation']
+        
+        # --- Brain Complexity Stats ---
+        num_nodes = []
+        num_connections = []
+        for i in active_indices:
+            genome = self.genomes[i]
+            if genome:
+                num_nodes.append(len(genome.nodes))
+                num_connections.append(len([c for c in genome.connections.values() if c.enabled]))
+
+        return {
+            'population': len(active_agents),
+            'avg_fitness': np.mean(active_agents['fitness']),
+            'max_fitness': np.max(active_agents['fitness']),
+            'avg_age': np.mean(active_agents['age']),
+            'max_age': np.max(active_agents['age']),
+            'avg_generation': np.mean(generations),
+            'max_generation': np.max(generations),
+            'avg_nodes': np.mean(num_nodes) if num_nodes else 0,
+            'avg_connections': np.mean(num_connections) if num_connections else 0,
+        }
