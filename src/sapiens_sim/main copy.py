@@ -7,9 +7,8 @@ from . import config
 from .core.world import create_world
 from .core.agent_manager import AgentManager
 from .core.adaptive_optimization import HybridSimulation
-from.core.vectorized_simulation import compare_performance
 
-def run_smart_simulation_with_vectorization():
+def run_smart_simulation():
     """
     Run simulation with intelligent optimization selection
     FIXED: Better optimization tracking and error handling
@@ -34,19 +33,13 @@ def run_smart_simulation_with_vectorization():
         config.WORLD_HEIGHT, 
         config.MAX_POPULATION_SIZE
     )
-    # ENHANCED: Force vectorization for populations > 25
-    original_thresholds = hybrid_sim.adaptive_optimizer.optimization_thresholds.copy()
-    hybrid_sim.adaptive_optimizer.optimization_thresholds['vectorized_ops'] = 25  # Lower threshold
-    print(f"🚀 Vectorized operations will activate at 25+ agents (was {original_thresholds['vectorized_ops']})")
-
+    
     # Initialize with adaptive strategy
     hybrid_sim.initialize_simulation(
         agent_manager, 
         config.AGENT_INITIAL_COUNT,
         config.SIMULATION_TICKS
     )
-
-    
     
     next_agent_id = config.AGENT_INITIAL_COUNT
     start_time = time.time()
@@ -130,6 +123,7 @@ def run_smart_simulation_with_vectorization():
         if (tick + 1) % config.CULLING_INTERVAL == 0:
             agent_manager.cull_the_dead()
         
+        # FIXED: Enhanced reporting with optimization info
         if (tick + 1) % 100 == 0:
             stats = agent_manager.get_population_stats()
             perf_stats = hybrid_sim.get_performance_stats()
@@ -141,12 +135,12 @@ def run_smart_simulation_with_vectorization():
             if current_strategy.get('use_spatial_grid', False):
                 opt_status += "S"  
             if current_strategy.get('use_vectorized_ops', False):
-                opt_status += "V"  # This should now appear!
+                opt_status += "V"
             if current_strategy.get('use_lazy_world', False):
                 opt_status += "L"
             if not opt_status:
                 opt_status = "None"
-        
+            
             # Calculate average tick time for recent period
             recent_tick_time = np.mean(tick_times[-100:]) if tick_times else 0
             
@@ -176,7 +170,7 @@ def run_smart_simulation_with_vectorization():
             else:
                 print(f" {tick+1:<4} | EXTINCTION - Final tick time: {recent_tick_time*1000:.1f}ms")
                 break # Stop simulation if everyone is dead
-            
+    
     total_time = time.time() - start_time
     final_population = np.sum(agents['health'] > 0)
     avg_tick_time = np.mean(tick_times) if tick_times else 0
@@ -248,7 +242,7 @@ def run_performance_test():
         
         try:
             start_time = time.time()
-            agents, world, hybrid_sim = run_smart_simulation_with_vectorization()
+            agents, world, hybrid_sim = run_smart_simulation()
             test_time = time.time() - start_time
             
             strategy = hybrid_sim.current_strategy
@@ -265,129 +259,10 @@ def run_performance_test():
             config.AGENT_INITIAL_COUNT = original_initial
             config.SIMULATION_TICKS = original_ticks
 
-def test_vectorized_performance():
-    """
-    Test the performance improvement from vectorized operations
-    """
-    print("=== Vectorized Performance Test ===")
-    
-    # Create test simulation
-    from . import config
-    from .core.world import create_world
-    from .core.agent_manager import AgentManager
-    
-    world = create_world(config.WORLD_WIDTH, config.WORLD_HEIGHT)
-    agent_manager = AgentManager(max_population=config.MAX_POPULATION_SIZE)
-    
-    # Test with different population sizes
-    test_sizes = [50, 100, 200, 300]
-    
-    for pop_size in test_sizes:
-        print(f"\n--- Testing {pop_size} agents ---")
-        
-        # Create population
-        agents = agent_manager.create_initial_population(
-            count=pop_size,
-            world_width=config.WORLD_WIDTH,
-            world_height=config.WORLD_HEIGHT,
-            min_reproduction_age=config.MIN_REPRODUCTION_AGE
-        )
-        
-        # Generate dummy decisions (normally from NEAT)
-        decisions = {}
-        for i in range(pop_size):
-            if agents[i]['health'] > 0:
-                decisions[i] = {
-                    'move_x': np.random.randn() * 0.5,
-                    'move_y': np.random.randn() * 0.5, 
-                    'seek_food': 0.7,
-                    'seek_mate': 0.3,
-                    'rest': 0.1,
-                    'craft_tool': 0.0,
-                    'build_shelter': 0.0,
-                }
-        
-        # Test parameters
-        params = {
-            'move_speed': config.MOVE_SPEED,
-            'hunger_rate': config.HUNGER_RATE,
-            'starvation_rate': config.STARVATION_RATE,
-            'foraging_threshold': config.FORAGING_THRESHOLD,
-            'eat_rate': config.EAT_RATE,
-            'resource_regrowth_rate': config.RESOURCE_REGROWTH_RATE,
-            'min_reproduction_age': config.MIN_REPRODUCTION_AGE,
-            'reproduction_rate': config.REPRODUCTION_RATE,
-            'gestation_period': config.GESTATION_PERIOD,
-            'reproduction_threshold': config.REPRODUCTION_THRESHOLD,
-            'mating_desire_rate': config.MATING_DESIRE_RATE,
-            'newborn_health': config.NEWBORN_HEALTH,
-            'newborn_hunger': config.NEWBORN_HUNGER,
-            'mother_health_penalty': config.MOTHER_HEALTH_PENALTY,
-            'terrain_cost_plains': config.TERRAIN_COST_PLAINS,
-            'terrain_cost_forest': config.TERRAIN_COST_FOREST,
-            'terrain_cost_mountain': config.TERRAIN_COST_MOUNTAIN,
-            'tool_decay_on_use': config.TOOL_DECAY_ON_USE,
-            'shelter_decay_per_tick': config.SHELTER_DECAY_PER_TICK,
-            'max_agent_age': config.MAX_AGENT_AGE,
-            'fitness_death_penalty': config.FITNESS_DEATH_PENALTY
-        }
-        
-        # Run performance comparison
-        try:
-            speedup = compare_performance(
-                agent_manager, world, decisions, pop_size, **params
-            )
-            print(f"✅ Vectorization achieved {speedup:.1f}x speedup!")
-            
-            if speedup > 2.0:
-                print(f"🎉 Excellent! {speedup:.1f}x faster than original")
-            elif speedup > 1.5:
-                print(f"👍 Good improvement: {speedup:.1f}x faster")
-            else:
-                print(f"🤔 Modest improvement: {speedup:.1f}x faster")
-                
-        except Exception as e:
-            print(f"❌ Test failed: {e}")
-
-def quick_vectorization_demo():
-    """
-    Quick demo showing before/after performance
-    """
-    print("=== Quick Vectorization Demo ===")
-    
-    # Small test with 100 agents for 50 ticks
-    original_config = (config.AGENT_INITIAL_COUNT, config.SIMULATION_TICKS)
-    
-    try:
-        config.AGENT_INITIAL_COUNT = 100
-        config.SIMULATION_TICKS = 50
-        
-        print("Running with vectorization...")
-        import time
-        start = time.time()
-        run_smart_simulation_with_vectorization()
-        vectorized_time = time.time() - start
-        
-        print(f"\nVectorized simulation completed in {vectorized_time:.2f} seconds")
-        print(f"That's approximately {vectorized_time/50*1000:.1f}ms per tick")
-        
-        # Expected improvement message
-        print(f"\n🎉 Expected improvement: 3-5x faster than original!")
-        print(f"   - Biology updates: Vectorized across all agents")
-        print(f"   - Movement: Parallel processing")
-        print(f"   - Eating: Simultaneous resource consumption")
-        print(f"   - Aging: Batch fertility and death processing")
-        
-    finally:
-        config.AGENT_INITIAL_COUNT, config.SIMULATION_TICKS = original_config
-
-# 1. Test vectorized performance immediately:
 if __name__ == "__main__":
     import sys
     
-    if len(sys.argv) > 1 and sys.argv[1] == "--test-vectorized":
-        test_vectorized_performance()
-    elif len(sys.argv) > 1 and sys.argv[1] == "--test":
+    if len(sys.argv) > 1 and sys.argv[1] == "--test":
         run_performance_test()
     else:
-        run_smart_simulation_with_vectorization()
+        run_smart_simulation()

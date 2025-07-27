@@ -85,7 +85,9 @@ def simulation_tick(
         decision = agent_population.make_decision(i, world, agents)
 
         # 2. ACT (Movement, Eating, Conception)
-        current_tile_y, current_tile_x = int(agent['pos'][0]), int(agent['pos'][1])
+        current_tile_y, current_tile_x = _get_safe_tile_coords(
+               agent['pos'], world_height, world_width
+        )
         # Check for Craft Tool action
         if decision['craft_tool'] > 0.8 and agent['tool_durability'] < 20:
             if world[current_tile_y, current_tile_x]['stone'] > 10:
@@ -95,6 +97,9 @@ def simulation_tick(
 
         # Check for Build Shelter action
         elif decision['build_shelter'] > 0.8 and agent['shelter_durability'] < 20:
+           
+            # Ensure enough stone is available
+
             if world[current_tile_y, current_tile_x]['stone'] > 20:
                 world[current_tile_y, current_tile_x]['stone'] -= 20
                 agent['shelter_durability'] = 100.0 # Set durability to max
@@ -260,11 +265,10 @@ def _find_suitable_mate(agent_idx: int, agents: np.ndarray) -> int:
                 return i
     
     return -1
-
 @jit(nopython=True)
 def _move_agent(agent: np.ndarray, direction_y: float, direction_x: float, 
                 move_speed: float, world_height: int, world_width: int):
-    """Move an agent (Numba optimized)"""
+    """Move an agent with robust boundary checking - FIXED"""
     # Normalize direction
     norm = np.sqrt(direction_y**2 + direction_x**2)
     if norm > 0:
@@ -275,17 +279,13 @@ def _move_agent(agent: np.ndarray, direction_y: float, direction_x: float,
     agent['pos'][0] += direction_y * move_speed
     agent['pos'][1] += direction_x * move_speed
     
-    # Boundary checking
-    if agent['pos'][0] < 0:
-        agent['pos'][0] = 0
-    elif agent['pos'][0] > world_height - 1:
-        agent['pos'][0] = world_height - 1
-    
-    if agent['pos'][1] < 0:
-        agent['pos'][1] = 0
-    elif agent['pos'][1] > world_width - 1:
-        agent['pos'][1] = world_width - 1
+    # FIXED: Proper boundary clamping that ensures valid array indices
+    # Clamp to [0, world_size-1] range to guarantee valid integer indices
+    agent['pos'][0] = max(0.0, min(agent['pos'][0], float(world_height - 1)))
+    agent['pos'][1] = max(0.0, min(agent['pos'][1], float(world_width - 1)))
 
+
+        
 @jit(nopython=True)
 def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float,tool_decay_on_use: float) -> float:
     """Handle agent eating (Numba optimized)"""
@@ -311,35 +311,34 @@ def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float,tool_de
         return eaten_amount
     
     return 0.0
-
 @jit(nopython=True)
 def _update_agent_biology(
     agent: np.ndarray,
     world: np.ndarray,
     hunger_rate: float,
     starvation_rate: float,
-    # --- NEW TERRAIN COST PARAMS ---
+    # --- TERRAIN COST PARAMS ---
     cost_plains: float,
     cost_forest: float,
     cost_mountain: float,
     shelter_decay_per_tick: float
 ):    
-    """Update agent's biological state, with hunger cost modified by terrain."""
+    """Update agent's biological state, with hunger cost modified by terrain - FIXED"""
+    
     # --- Shelter Durability ---
     has_shelter = agent['shelter_durability'] > 0
     if has_shelter:
         agent['shelter_durability'] -= shelter_decay_per_tick
         if agent['shelter_durability'] < 0:
             agent['shelter_durability'] = 0
-    # Determine the hunger cost for this tick
-
+    
+    # FIXED: Calculate effective hunger rate (with shelter benefit)
     effective_hunger_rate = hunger_rate * 0.7 if has_shelter else hunger_rate
 
+    # FIXED: Get terrain multiplier
     current_tile_y = int(agent['pos'][0])
     current_tile_x = int(agent['pos'][1])
     terrain_type = world[current_tile_y, current_tile_x]['terrain']
-
-    
 
     terrain_multiplier = 1.0
     if terrain_type == TERRAIN_PLAINS:
@@ -349,21 +348,30 @@ def _update_agent_biology(
     elif terrain_type == TERRAIN_MOUNTAIN:
         terrain_multiplier = cost_mountain
     
-    # Apply hunger cost
+    # FIXED: Apply hunger cost ONLY ONCE (removed duplicate)
     agent['hunger'] += effective_hunger_rate * terrain_multiplier
     
-    """Update agent's biological state (Numba optimized)"""
-    agent['hunger'] += hunger_rate
+    # Cap hunger at 100
     if agent['hunger'] > 100.0:
         agent['hunger'] = 100.0
     
+    # FIXED: Apply starvation damage
     if agent['hunger'] > 90.0:
         agent['health'] -= starvation_rate
     
+    # FIXED: Ensure health doesn't go below 0
     if agent['health'] < 0:
         agent['health'] = 0
 
-    if has_shelter:
-        agent['shelter_durability'] -= shelter_decay_per_tick
-        if agent['shelter_durability'] < 0:
-            agent['shelter_durability'] = 0
+# FIXED: Safe tile coordinate extraction
+@jit(nopython=True) 
+def _get_safe_tile_coords(pos: np.ndarray, world_height: int, world_width: int):
+    """Get safe tile coordinates that are guaranteed to be valid array indices"""
+    tile_y = int(pos[0])
+    tile_x = int(pos[1])
+    
+    # Double-check bounds (defensive programming)
+    tile_y = max(0, min(tile_y, world_height - 1))
+    tile_x = max(0, min(tile_x, world_width - 1))
+    
+    return tile_y, tile_x
