@@ -67,7 +67,10 @@ def run_smart_simulation():
             'mating_desire_rate': config.MATING_DESIRE_RATE,
             'newborn_health': config.NEWBORN_HEALTH,
             'newborn_hunger': config.NEWBORN_HUNGER,
-            'mother_health_penalty': config.MOTHER_HEALTH_PENALTY
+            'mother_health_penalty': config.MOTHER_HEALTH_PENALTY,
+            'terrain_cost_plains': config.TERRAIN_COST_PLAINS,
+            'terrain_cost_forest': config.TERRAIN_COST_FOREST,
+            'terrain_cost_mountain': config.TERRAIN_COST_MOUNTAIN
         }
 
         # Additional parameters for adaptive optimization

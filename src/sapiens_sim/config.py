@@ -43,3 +43,10 @@ FITNESS_HEALTH = 0.05
 FITNESS_AGE = 0.02
 FITNESS_STARVATION_PENALTY = -0.1
 FITNESS_DEATH_PENALTY = -15.0
+
+
+# --- NEW: TERRAIN MOVEMENT COSTS ---
+# Multiplier for hunger_rate based on terrain. 1.0 is normal cost.
+TERRAIN_COST_PLAINS = 1.0
+TERRAIN_COST_FOREST = 1.5   # Moving through dense forest is harder
+TERRAIN_COST_MOUNTAIN = 5.0 # Moving through mountains is extremely costly

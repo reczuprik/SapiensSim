@@ -264,7 +264,8 @@ class HybridSimulation:
             'eat_rate', 'resource_regrowth_rate', 'min_reproduction_age',
             'reproduction_rate', 'gestation_period', 'reproduction_threshold',
             'mating_desire_rate', 'newborn_health', 'newborn_hunger',
-            'mother_health_penalty'
+            'mother_health_penalty','terrain_cost_plains',
+            'terrain_cost_forest', 'terrain_cost_mountain','max_agent_age', 'fitness_death_penalty'
         }
         
         filtered_params = {k: v for k, v in params.items() if k in supported_params}

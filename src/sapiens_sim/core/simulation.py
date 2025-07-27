@@ -5,6 +5,12 @@ import numpy as np
 from numba import jit
 from .agent_manager import AgentManager, SEX_FEMALE
 
+# Define terrain constants here if they aren't already, so Numba can see them
+TERRAIN_PLAINS = 0
+TERRAIN_FOREST = 1
+TERRAIN_WATER = 2
+TERRAIN_MOUNTAIN = 3
+
 def simulation_tick(
     agent_population: AgentManager,
     world: np.ndarray,
@@ -22,7 +28,11 @@ def simulation_tick(
     mating_desire_rate: float,
     newborn_health: float,
     newborn_hunger: float,
-    mother_health_penalty: float
+    mother_health_penalty: float,
+    max_agent_age: int,
+    terrain_cost_plains: float,
+    terrain_cost_forest: float,
+    terrain_cost_mountain: float
 ) -> tuple:
     """
     Enhanced simulation tick that uses NEAT brains for agent decision making.
@@ -72,7 +82,16 @@ def simulation_tick(
         # 2. ACT (Movement, Eating, Conception)
         # ... (This logic is correct and remains unchanged) ...
         direction_y, direction_x = 0.0, 0.0
-        if decision['seek_food'] > 0.5 and agent['hunger'] > foraging_threshold:
+        # 1. First, check for the overriding "Rest" action.
+        if decision['rest'] > 0.7 and decision['rest'] > decision['seek_food'] and decision['rest'] > decision['seek_mate']:
+            # Winner-Take-All for Resting:
+            direction_y = 0.0
+            direction_x = 0.0
+            if agent['health'] < 90.0:
+                agent['health'] += 0.5
+                agent_population.update_fitness(i, 0.02)
+        # 2. If not resting, use your blended logic for all other actions.
+        elif decision['seek_food'] > 0.5 and agent['hunger'] > foraging_threshold:
             food_direction = _get_food_direction(agent, world)
             direction_y = 0.7 * food_direction[0] + 0.3 * decision['move_y']
             direction_x = 0.7 * food_direction[1] + 0.3 * decision['move_x']
@@ -86,12 +105,6 @@ def simulation_tick(
             if agent['mating_desire'] > 80.0:
                 agent_population.update_fitness(i, 0.05)
         
-        elif decision['rest'] > 0.7:
-            direction_y = 0.1 * decision['move_y']
-            direction_x = 0.1 * decision['move_x']
-            if agent['health'] < 90.0:
-                agent['health'] += 0.5
-                agent_population.update_fitness(i, 0.02)
         else:
             direction_y = decision['move_y']
             direction_x = decision['move_x']
@@ -121,7 +134,13 @@ def simulation_tick(
                 agent_population.update_fitness(mate_idx, 2.0)
 
         # 3. UPDATE STATE (Biology, Age, Fitness)
-        _update_agent_biology(agent, hunger_rate, starvation_rate)
+        _update_agent_biology(agent,
+                              world, 
+                              hunger_rate,
+                              starvation_rate,
+                              terrain_cost_plains,
+                              terrain_cost_forest,
+                              terrain_cost_mountain)
 
         if agent['is_fertile'] and not agent['is_pregnant'] and agent['hunger'] < reproduction_threshold:
             agent['mating_desire'] += mating_desire_rate
@@ -261,7 +280,34 @@ def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float) -> flo
     return 0.0
 
 @jit(nopython=True)
-def _update_agent_biology(agent: np.ndarray, hunger_rate: float, starvation_rate: float):
+def _update_agent_biology(
+    agent: np.ndarray,
+    world: np.ndarray, # <-- NEW
+    hunger_rate: float,
+    starvation_rate: float,
+    # --- NEW TERRAIN COST PARAMS ---
+    cost_plains: float,
+    cost_forest: float,
+    cost_mountain: float
+):    
+    """Update agent's biological state, with hunger cost modified by terrain."""
+    
+    # Determine the hunger cost for this tick
+    current_tile_y = int(agent['pos'][0])
+    current_tile_x = int(agent['pos'][1])
+    terrain_type = world[current_tile_y, current_tile_x]['terrain']
+    
+    terrain_multiplier = 1.0
+    if terrain_type == TERRAIN_PLAINS:
+        terrain_multiplier = cost_plains
+    elif terrain_type == TERRAIN_FOREST:
+        terrain_multiplier = cost_forest
+    elif terrain_type == TERRAIN_MOUNTAIN:
+        terrain_multiplier = cost_mountain
+    
+    # Apply hunger cost
+    agent['hunger'] += hunger_rate * terrain_multiplier
+
     """Update agent's biological state (Numba optimized)"""
     agent['hunger'] += hunger_rate
     if agent['hunger'] > 100.0:

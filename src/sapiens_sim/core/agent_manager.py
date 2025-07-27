@@ -11,7 +11,7 @@ from .neat_brain import (
     INPUT_HUNGER, INPUT_HEALTH, INPUT_AGE, INPUT_MATING_DESIRE,
     INPUT_NEAREST_FOOD_DISTANCE, INPUT_NEAREST_FOOD_DIRECTION_X, INPUT_NEAREST_FOOD_DIRECTION_Y,
     INPUT_NEAREST_MATE_DISTANCE, INPUT_NEAREST_MATE_DIRECTION_X, INPUT_NEAREST_MATE_DIRECTION_Y,
-    INPUT_POPULATION_DENSITY, INPUT_CURRENT_RESOURCES,
+    INPUT_POPULATION_DENSITY, INPUT_CURRENT_RESOURCES,INPUT_TERRAIN_TYPE,
     OUTPUT_MOVE_X, OUTPUT_MOVE_Y, OUTPUT_SEEK_FOOD, OUTPUT_SEEK_MATE, OUTPUT_REST
 )
 from .neat_brain import NEATGenome, NEATBrain, create_random_genome, mutate_genome, crossover
@@ -127,6 +127,10 @@ class AgentManager:
         tile_y = max(0, min(world.shape[0] - 1, tile_y))
         tile_x = max(0, min(world.shape[1] - 1, tile_x))
         inputs[INPUT_CURRENT_RESOURCES] = min(world[tile_y, tile_x]['resources'] / 100.0, 1.0)
+        
+        terrain_type = world[tile_y, tile_x]['terrain']
+        # Normalize the terrain type (0-3) to a value between 0 and 1
+        inputs[INPUT_TERRAIN_TYPE] = terrain_type / 3.0
         
         return inputs
     
