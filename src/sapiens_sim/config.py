@@ -8,14 +8,21 @@ RESOURCE_REGROWTH_RATE = 0.15
 # --- Population & Simulation ---
 MAX_POPULATION_SIZE = 300
 AGENT_INITIAL_COUNT = 100
-SIMULATION_TICKS = 10000
+SIMULATION_TICKS = 5000
 CULLING_INTERVAL = 100 # How often to clean up dead agents
+# --- NEW: LIFESPAN ---
+MAX_AGENT_AGE = 4000 # Approx 40 "years" if 1 year = 100 ticks
 
+# --- Agent Biology & Reproduction (Tuned for more challenge) ---
+
+
+RESOURCE_REGROWTH_RATE = 0.05 # Food is much scarcer and grows back slower
 # --- Agent Biology & Reproduction ---
 MOVE_SPEED = 1.0
-HUNGER_RATE = 0.3
-STARVATION_RATE = 1.0
-EAT_RATE = 25.0
+HUNGER_RATE = 0.5           # Increased daily energy cost
+
+STARVATION_RATE = 1.5       # Starving is more dangerous
+EAT_RATE = 20.0             # Reduced energy from a single meal
 FORAGING_THRESHOLD = 30.0  # <-- THE MISSING PARAMETER
 MIN_REPRODUCTION_AGE = 18
 REPRODUCTION_RATE = 0.02
@@ -35,4 +42,4 @@ FITNESS_REPRODUCTION = 2.0
 FITNESS_HEALTH = 0.05
 FITNESS_AGE = 0.02
 FITNESS_STARVATION_PENALTY = -0.1
-FITNESS_DEATH_PENALTY = -5.0
+FITNESS_DEATH_PENALTY = -15.0

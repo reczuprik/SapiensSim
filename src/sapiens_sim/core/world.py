@@ -1,10 +1,7 @@
-# FILE_NAME: src/sapiens_sim/core/world.py
-# CODE_BLOCK_ID: SapiensSim-v0.2-world.py
-
 import numpy as np
+from .neat_brain import linear # Assuming this is where terrain constants are/will be
 
 # Define terrain types as integer constants for performance.
-# Using integers is much faster and more memory-efficient than strings.
 TERRAIN_PLAINS = 0
 TERRAIN_FOREST = 1
 TERRAIN_WATER = 2
@@ -12,54 +9,52 @@ TERRAIN_MOUNTAIN = 3
 
 def create_world(width: int, height: int) -> np.ndarray:
     """
-    Creates the simulation world as a 2D NumPy structured array.
-
-    Each cell in the world grid contains information about its terrain
-    and available resources.
-
-    Args:
-        width (int): The width of the world grid.
-        height (int): The height of the world grid.
-
-    Returns:
-        np.ndarray: A 2D array representing the world.
+    Creates a world with more realistic geography, including a mountain
+    range and a fertile river valley.
     """
-    # Define the data type (dtype) for a single cell in our world.
-    # This is a 'structured array', which is like a super-efficient spreadsheet.
-    # Each cell has a 'resources' field (a 32-bit float) and a
-    # 'terrain' field (an 8-bit integer).
     world_dtype = np.dtype([
         ('resources', np.float32),
         ('terrain', np.int8)
     ])
-
-    # Create the 2D grid, initialized with zeros.
     world = np.zeros((height, width), dtype=world_dtype)
 
-    # --- Initial World Generation ---
-    # This is where we can get creative. For now, we will create a simple
-    # world: mostly plains, with some randomly scattered forests.
-    # We will leave more advanced generation (like Perlin noise for continents)
-    # for a future step.
-
-    # Initialize all terrain to PLAINS
-    world['terrain'] = TERRAIN_PLAINS
-
-    # Create some random patches of FOREST
-    # Generate a random float for each cell, and if it's below a threshold,
-    # turn that cell into a forest.
-    forest_patches = np.random.rand(height, width) < 0.15 # 15% chance of forest
-    world['terrain'][forest_patches] = TERRAIN_FOREST
-
-    # Populate resources based on terrain type
-    # Plains have a moderate amount of resources.
-    world['resources'][world['terrain'] == TERRAIN_PLAINS] = np.random.uniform(10, 30, np.sum(world['terrain'] == TERRAIN_PLAINS))
+    # --- Generate a Mountain Range ---
+    # Create a wavy line for the mountain range spine
+    mountain_x = np.arange(width)
+    mountain_y = (height / 2) + np.sin(mountain_x / 20) * 15 + np.random.randn(width) * 5
     
-    # Forests are rich in resources.
-    world['resources'][world['terrain'] == TERRAIN_FOREST] = np.random.uniform(40, 80, np.sum(world['terrain'] == TERRAIN_FOREST))
+    # Create a grid of coordinates
+    y_coords, x_coords = np.indices((height, width))
+    
+    # Calculate distance from each point to the mountain spine
+    dist_to_mountain = np.abs(y_coords - mountain_y[:, np.newaxis].T)
+    
+    # Create mountain and high-altitude plains zones
+    mountain_zone = dist_to_mountain < 10
+    high_plains_zone = (dist_to_mountain >= 10) & (dist_to_mountain < 25)
 
-    print(f"World created with size {width}x{height}.")
-    print(f"Total cells: {width*height}")
-    print(f"Forest cells: {np.sum(forest_patches)}")
+    world['terrain'][mountain_zone] = TERRAIN_MOUNTAIN
+    # Mountains are barren
+    world['resources'][mountain_zone] = 0
+
+    # --- Generate a Fertile River Valley ---
+    # The valley runs parallel to the mountains
+    valley_zone = (dist_to_mountain >= 25) & (dist_to_mountain < 50)
+    world['terrain'][valley_zone] = TERRAIN_PLAINS
+    
+    # Forests grow near the river (center of the valley)
+    forest_zone = (dist_to_mountain >= 30) & (dist_to_mountain < 45)
+    world['terrain'][forest_zone] = TERRAIN_FOREST
+    
+    # Populate resources based on biome
+    # Forests are very rich
+    world['resources'][forest_zone] = np.random.uniform(60, 100, np.sum(forest_zone))
+    # Plains in the valley are moderately rich
+    world['resources'][valley_zone & (world['terrain'] == TERRAIN_PLAINS)] = np.random.uniform(20, 40, np.sum(valley_zone & (world['terrain'] == TERRAIN_PLAINS)))
+    # High plains are sparse
+    world['resources'][high_plains_zone] = np.random.uniform(0, 10, np.sum(high_plains_zone))
+
+    print(f"Realistic world created with size {width}x{height}.")
+    print(f"Forest cells: {np.sum(forest_zone)}, Mountain cells: {np.sum(mountain_zone)}")
     
     return world

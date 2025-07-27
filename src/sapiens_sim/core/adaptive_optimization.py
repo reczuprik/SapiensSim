@@ -14,9 +14,9 @@ class AdaptiveOptimizer:
     def __init__(self):
         self.optimization_thresholds = {
             'spatial_grid': 100,      # Use spatial grid only with 100+ agents
-            'batch_neat': 150,        # Batch evaluation only with 150+ agents  
-            'vectorized_ops': 75,     # Vectorized operations with 75+ agents
-            'lazy_world': 200,        # Lazy world updates with 200+ agents
+            'batch_neat': 100,        # Batch evaluation only with 150+ agents  
+            'vectorized_ops': 100,     # Vectorized operations with 75+ agents
+            'lazy_world': 100,        # Lazy world updates with 200+ agents
         }
         
         self.performance_cache = {}
@@ -108,10 +108,45 @@ class HybridSimulation:
         
         # Use appropriate simulation method
         if any(self.current_strategy.values()):
-            return self._optimized_tick(agent_manager, world, next_agent_id, **params)
+            agents, world, next_agent_id = self._optimized_tick(agent_manager, world, next_agent_id, **params)
         else:
-            return self._simple_tick(agent_manager, world, next_agent_id, **params)
-    
+            agents, world, next_agent_id = self._simple_tick(agent_manager, world, next_agent_id, **params)
+        
+        max_age = params.get('max_agent_age', 4000)
+        death_penalty = params.get('fitness_death_penalty', -5.0)
+        
+        self._handle_aging_and_death(agent_manager, max_age, death_penalty)
+
+        return agents, world, next_agent_id
+
+
+    def _handle_aging_and_death(self, agent_manager, max_age: int, death_penalty: float):
+        """
+        Handles aging and death from old age for all active agents.
+        This is done in a vectorized way for performance.
+        """
+        agents = agent_manager.agents
+        active_mask = agents['health'] > 0
+        
+        if not np.any(active_mask):
+            return
+
+        # --- Aging ---
+        agents['age'][active_mask] += 1
+        
+        # --- Death from Old Age ---
+        old_age_mask = (agents['age'] > max_age) & active_mask
+        
+        if np.any(old_age_mask):
+            # "Kill" the agents by setting their health to 0
+            agents['health'][old_age_mask] = 0
+            
+            # Apply a fitness penalty for dying
+            old_age_indices = np.where(old_age_mask)[0]
+            for i in old_age_indices:
+                # Use the passed-in parameter instead of a global config
+                agent_manager.update_fitness(i, death_penalty)
+
     def _optimized_tick(self, agent_manager, world, next_agent_id, **params):
         """Use optimized components selectively"""
         
@@ -223,7 +258,18 @@ class HybridSimulation:
     
     def _individual_agent_processing(self, agent_manager, agents, world, decisions, next_agent_id, **params):
         """Individual agent processing for smaller populations"""
+        # Filter out params that aren't supported by simulation_tick
+        supported_params = {
+            'move_speed', 'hunger_rate', 'starvation_rate', 'foraging_threshold',
+            'eat_rate', 'resource_regrowth_rate', 'min_reproduction_age',
+            'reproduction_rate', 'gestation_period', 'reproduction_threshold',
+            'mating_desire_rate', 'newborn_health', 'newborn_hunger',
+            'mother_health_penalty'
+        }
+        
+        filtered_params = {k: v for k, v in params.items() if k in supported_params}
+        
         from .simulation import simulation_tick
-        return simulation_tick(agent_manager, world, next_agent_id, **params)
+        return simulation_tick(agent_manager, world, next_agent_id, **filtered_params)
 
 
