@@ -53,7 +53,7 @@ def run_smart_simulation():
     # Main simulation loop
     for tick in range(config.SIMULATION_TICKS):
         # Separate core simulation parameters from additional parameters
-        sim_params = {
+        all_params = {
             'move_speed': config.MOVE_SPEED,
             'hunger_rate': config.HUNGER_RATE,
             'starvation_rate': config.STARVATION_RATE,
@@ -70,18 +70,14 @@ def run_smart_simulation():
             'mother_health_penalty': config.MOTHER_HEALTH_PENALTY,
             'terrain_cost_plains': config.TERRAIN_COST_PLAINS,
             'terrain_cost_forest': config.TERRAIN_COST_FOREST,
-            'terrain_cost_mountain': config.TERRAIN_COST_MOUNTAIN
-        }
-
-        # Additional parameters for adaptive optimization
-        adaptive_params = {
+            'terrain_cost_mountain': config.TERRAIN_COST_MOUNTAIN,
+            'tool_decay_on_use': config.TOOL_DECAY_ON_USE,
+            'shelter_decay_per_tick': config.SHELTER_DECAY_PER_TICK,
             'max_agent_age': config.MAX_AGENT_AGE,
             'fitness_death_penalty': config.FITNESS_DEATH_PENALTY
         }
 
-        # Merge parameters for adaptive simulation
-        all_params = {**sim_params, **adaptive_params}
-        
+
         agents, world, next_agent_id = hybrid_sim.adaptive_simulation_tick(
             agent_manager=agent_manager,
             world=world,

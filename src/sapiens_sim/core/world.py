@@ -14,6 +14,8 @@ def create_world(width: int, height: int) -> np.ndarray:
     """
     world_dtype = np.dtype([
         ('resources', np.float32),
+        ('stone', np.float32), # Amount of stone on this tile
+
         ('terrain', np.int8)
     ])
     world = np.zeros((height, width), dtype=world_dtype)
@@ -53,8 +55,12 @@ def create_world(width: int, height: int) -> np.ndarray:
     world['resources'][valley_zone & (world['terrain'] == TERRAIN_PLAINS)] = np.random.uniform(20, 40, np.sum(valley_zone & (world['terrain'] == TERRAIN_PLAINS)))
     # High plains are sparse
     world['resources'][high_plains_zone] = np.random.uniform(0, 10, np.sum(high_plains_zone))
+    # Stone is found in and near the mountains.
+    stone_zone = (dist_to_mountain < 15) # In the mountains and high plains
+    world['stone'][stone_zone] = np.random.uniform(50, 100, np.sum(stone_zone))
 
     print(f"Realistic world created with size {width}x{height}.")
     print(f"Forest cells: {np.sum(forest_zone)}, Mountain cells: {np.sum(mountain_zone)}")
-    
+    print(f"Plains cells: {np.sum(valley_zone & (world['terrain'] == TERRAIN_PLAINS))}, High plains cells: {np.sum(high_plains_zone)}")    
+    print(f"Total resources: {np.sum(world['resources'])}, Total stone: {np.sum(world['stone'])}")
     return world

@@ -32,7 +32,12 @@ def simulation_tick(
     max_agent_age: int,
     terrain_cost_plains: float,
     terrain_cost_forest: float,
-    terrain_cost_mountain: float
+    terrain_cost_mountain: float,
+    fitness_death_penalty: float,
+    tool_decay_on_use: float,
+    shelter_decay_per_tick: float,  
+    
+
 ) -> tuple:
     """
     Enhanced simulation tick that uses NEAT brains for agent decision making.
@@ -80,7 +85,22 @@ def simulation_tick(
         decision = agent_population.make_decision(i, world, agents)
 
         # 2. ACT (Movement, Eating, Conception)
-        # ... (This logic is correct and remains unchanged) ...
+        current_tile_y, current_tile_x = int(agent['pos'][0]), int(agent['pos'][1])
+        # Check for Craft Tool action
+        if decision['craft_tool'] > 0.8 and agent['tool_durability'] < 20:
+            if world[current_tile_y, current_tile_x]['stone'] > 10:
+                world[current_tile_y, current_tile_x]['stone'] -= 10
+                agent['tool_durability'] = 100.0 # Set durability to max
+                agent_population.update_fitness(i, 5.0)
+
+        # Check for Build Shelter action
+        elif decision['build_shelter'] > 0.8 and agent['shelter_durability'] < 20:
+            if world[current_tile_y, current_tile_x]['stone'] > 20:
+                world[current_tile_y, current_tile_x]['stone'] -= 20
+                agent['shelter_durability'] = 100.0 # Set durability to max
+                agent_population.update_fitness(i, 10.0)
+
+        # If no special actions, proceed with movement and eating
         direction_y, direction_x = 0.0, 0.0
         # 1. First, check for the overriding "Rest" action.
         if decision['rest'] > 0.7 and decision['rest'] > decision['seek_food'] and decision['rest'] > decision['seek_mate']:
@@ -110,7 +130,7 @@ def simulation_tick(
             direction_x = decision['move_x']
 
         _move_agent(agent, direction_y, direction_x, move_speed, world_height, world_width)
-        eaten_amount = _handle_eating(agent, world, eat_rate)
+        eaten_amount = _handle_eating(agent, world, eat_rate, tool_decay_on_use) # Pass tool status
         if eaten_amount > 0:
             reward = eaten_amount / eat_rate * (1.0 + agent['hunger'] / 100.0)
             agent_population.update_fitness(i, reward * 0.1)
@@ -134,22 +154,20 @@ def simulation_tick(
                 agent_population.update_fitness(mate_idx, 2.0)
 
         # 3. UPDATE STATE (Biology, Age, Fitness)
-        _update_agent_biology(agent,
-                              world, 
-                              hunger_rate,
-                              starvation_rate,
+        _update_agent_biology(agent, world, hunger_rate, starvation_rate,
                               terrain_cost_plains,
                               terrain_cost_forest,
-                              terrain_cost_mountain)
+                              terrain_cost_mountain, shelter_decay_per_tick ) # Pass shelter status
+
+
 
         if agent['is_fertile'] and not agent['is_pregnant'] and agent['hunger'] < reproduction_threshold:
             agent['mating_desire'] += mating_desire_rate
             if agent['mating_desire'] > 100.0:
                 agent['mating_desire'] = 100.0
 
-        agent['age'] += 1
-        if not agent['is_fertile'] and agent['age'] >= min_reproduction_age:
-            agent['is_fertile'] = True
+        
+
 
         agent_population.update_fitness(i, 0.01)
         if agent['health'] > 75.0: agent_population.update_fitness(i, 0.05)
@@ -160,8 +178,12 @@ def simulation_tick(
     # We must age all living agents *after* the main loop, so newborns
     # from this tick become age 1 for the next tick.
     for i in range(len(agents)):
-        if agents[i]['health'] > 0:
-            agents[i]['age'] += 1
+        agent = agents[i]
+        if agent['health'] > 0:
+            agent['age'] += 1
+            # Fertility update should happen here as well
+            if not agent['is_fertile'] and agent['age'] >= min_reproduction_age:
+                agent['is_fertile'] = True
 
             
     return agents, world, next_agent_id
@@ -265,16 +287,27 @@ def _move_agent(agent: np.ndarray, direction_y: float, direction_x: float,
         agent['pos'][1] = world_width - 1
 
 @jit(nopython=True)
-def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float) -> float:
+def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float,tool_decay_on_use: float) -> float:
     """Handle agent eating (Numba optimized)"""
+
+
     tile_y, tile_x = int(agent['pos'][0]), int(agent['pos'][1])
+    has_tool = agent['tool_durability'] > 0
     
     if world[tile_y, tile_x]['resources'] > 0:
-        eaten_amount = min(world[tile_y, tile_x]['resources'], eat_rate)
+        effective_eat_rate = eat_rate * 1.5 if has_tool else eat_rate
+        eaten_amount = min(world[tile_y, tile_x]['resources'], effective_eat_rate)
+        
         world[tile_y, tile_x]['resources'] -= eaten_amount
         agent['hunger'] -= eaten_amount
         if agent['hunger'] < 0:
             agent['hunger'] = 0
+        
+        if has_tool and eaten_amount > 0:
+            agent['tool_durability'] -= tool_decay_on_use
+            if agent['tool_durability'] < 0:
+                agent['tool_durability'] = 0
+
         return eaten_amount
     
     return 0.0
@@ -282,21 +315,32 @@ def _handle_eating(agent: np.ndarray, world: np.ndarray, eat_rate: float) -> flo
 @jit(nopython=True)
 def _update_agent_biology(
     agent: np.ndarray,
-    world: np.ndarray, # <-- NEW
+    world: np.ndarray,
     hunger_rate: float,
     starvation_rate: float,
     # --- NEW TERRAIN COST PARAMS ---
     cost_plains: float,
     cost_forest: float,
-    cost_mountain: float
+    cost_mountain: float,
+    shelter_decay_per_tick: float
 ):    
     """Update agent's biological state, with hunger cost modified by terrain."""
-    
+    # --- Shelter Durability ---
+    has_shelter = agent['shelter_durability'] > 0
+    if has_shelter:
+        agent['shelter_durability'] -= shelter_decay_per_tick
+        if agent['shelter_durability'] < 0:
+            agent['shelter_durability'] = 0
     # Determine the hunger cost for this tick
+
+    effective_hunger_rate = hunger_rate * 0.7 if has_shelter else hunger_rate
+
     current_tile_y = int(agent['pos'][0])
     current_tile_x = int(agent['pos'][1])
     terrain_type = world[current_tile_y, current_tile_x]['terrain']
+
     
+
     terrain_multiplier = 1.0
     if terrain_type == TERRAIN_PLAINS:
         terrain_multiplier = cost_plains
@@ -306,8 +350,8 @@ def _update_agent_biology(
         terrain_multiplier = cost_mountain
     
     # Apply hunger cost
-    agent['hunger'] += hunger_rate * terrain_multiplier
-
+    agent['hunger'] += effective_hunger_rate * terrain_multiplier
+    
     """Update agent's biological state (Numba optimized)"""
     agent['hunger'] += hunger_rate
     if agent['hunger'] > 100.0:
@@ -318,3 +362,8 @@ def _update_agent_biology(
     
     if agent['health'] < 0:
         agent['health'] = 0
+
+    if has_shelter:
+        agent['shelter_durability'] -= shelter_decay_per_tick
+        if agent['shelter_durability'] < 0:
+            agent['shelter_durability'] = 0

@@ -12,7 +12,8 @@ from .neat_brain import (
     INPUT_NEAREST_FOOD_DISTANCE, INPUT_NEAREST_FOOD_DIRECTION_X, INPUT_NEAREST_FOOD_DIRECTION_Y,
     INPUT_NEAREST_MATE_DISTANCE, INPUT_NEAREST_MATE_DIRECTION_X, INPUT_NEAREST_MATE_DIRECTION_Y,
     INPUT_POPULATION_DENSITY, INPUT_CURRENT_RESOURCES,INPUT_TERRAIN_TYPE,
-    OUTPUT_MOVE_X, OUTPUT_MOVE_Y, OUTPUT_SEEK_FOOD, OUTPUT_SEEK_MATE, OUTPUT_REST
+    INPUT_CURRENT_STONE, INPUT_TOOL_DURABILITY, INPUT_SHELTER_DURABILITY,
+    OUTPUT_MOVE_X, OUTPUT_MOVE_Y, OUTPUT_SEEK_FOOD, OUTPUT_SEEK_MATE, OUTPUT_REST,OUTPUT_BUILD_SHELTER, OUTPUT_CRAFT_TOOL
 )
 from .neat_brain import NEATGenome, NEATBrain, create_random_genome, mutate_genome, crossover
 
@@ -42,6 +43,8 @@ class AgentManager:
             ('partner_id', np.int32), # <-- NEW FIELD to store father's ID
             ('mating_desire', np.float32),
             ('fitness', np.float32),
+            ('tool_durability', np.float32),     # Replaces has_tool. 0 to 100.
+            ('shelter_durability', np.float32),  # Replaces has_shelter. 0 to 100.
             ('generation', np.int32),
         ])
         
@@ -76,6 +79,16 @@ class AgentManager:
         # Initialize fitness and generation
         active_agents['fitness'] = 0.0
         active_agents['generation'] = 0
+        
+        #Initialize pregnancy status
+        active_agents['is_pregnant'] = 0    
+        active_agents['partner_id'] = -1  # No partner initially
+        active_agents['mating_desire'] = 0.0
+
+        # Initialize tool and shelter status
+        # For simplicity, we assume no agents have tools or shelters at start
+        active_agents['tool_durability'] = 0.0  # No tool at start
+        active_agents['shelter_durability'] = 0.0
         
         # Create random NEAT brains for each agent
         for i in range(count):
@@ -131,6 +144,12 @@ class AgentManager:
         terrain_type = world[tile_y, tile_x]['terrain']
         # Normalize the terrain type (0-3) to a value between 0 and 1
         inputs[INPUT_TERRAIN_TYPE] = terrain_type / 3.0
+        
+        # Current stone on tile
+        inputs[INPUT_CURRENT_STONE] = min(world[tile_y, tile_x]['stone'] / 100.0, 1.0)
+        # Tool and shelter durability
+        inputs[INPUT_TOOL_DURABILITY] = min(agent['tool_durability'] / 100.0, 1.0)
+        inputs[INPUT_SHELTER_DURABILITY] = min(agent['shelter_durability'] / 100.0, 1.0)
         
         return inputs
     
@@ -212,7 +231,9 @@ class AgentManager:
                 'move_y': np.random.randn(), 
                 'seek_food': 0.5,
                 'seek_mate': 0.5,
-                'rest': 0.5
+                'rest': 0.5,
+                'craft_tool': 0.0,      # Default to not wanting to craft
+                'build_shelter': 0.0,   # Default to not wanting to build
             }
         
         # Get inputs for the brain
@@ -227,7 +248,9 @@ class AgentManager:
             'move_y': np.tanh(outputs[OUTPUT_MOVE_Y]),
             'seek_food': outputs[OUTPUT_SEEK_FOOD],
             'seek_mate': outputs[OUTPUT_SEEK_MATE],
-            'rest': outputs[OUTPUT_REST]
+            'rest': outputs[OUTPUT_REST],
+            'craft_tool': outputs[OUTPUT_CRAFT_TOOL],
+            'build_shelter': outputs[OUTPUT_BUILD_SHELTER]
         }
 
     # In class AgentManager:
@@ -277,6 +300,10 @@ class AgentManager:
         offspring['mating_desire'] = 0.0
         offspring['fitness'] = 0.0
         offspring['generation'] = self.generation + 1 # Child is of the next generation
+        offspring['tool_durability'] = 0.0  # Newborn has no tool
+        offspring['shelter_durability'] = 0.0  # Newborn has no shelter
+        # 4. Set the newborn's fertility
+        
 
         # 4. Apply penalty to the mother.
         self.agents[mother_idx]['health'] -= config.MOTHER_HEALTH_PENALTY

@@ -20,7 +20,6 @@ RESOURCE_REGROWTH_RATE = 0.05 # Food is much scarcer and grows back slower
 # --- Agent Biology & Reproduction ---
 MOVE_SPEED = 1.0
 HUNGER_RATE = 0.5           # Increased daily energy cost
-
 STARVATION_RATE = 1.5       # Starving is more dangerous
 EAT_RATE = 20.0             # Reduced energy from a single meal
 FORAGING_THRESHOLD = 30.0  # <-- THE MISSING PARAMETER
@@ -50,3 +49,8 @@ FITNESS_DEATH_PENALTY = -15.0
 TERRAIN_COST_PLAINS = 1.0
 TERRAIN_COST_FOREST = 1.5   # Moving through dense forest is harder
 TERRAIN_COST_MOUNTAIN = 5.0 # Moving through mountains is extremely costly
+
+
+# --- NEW: TECHNOLOGY DURABILITY ---
+TOOL_DECAY_ON_USE = 2.5  # Tool loses 2.5% of its durability with each use
+SHELTER_DECAY_PER_TICK = 0.1 # Shelter loses 0.1% of its durability each tick just by existing

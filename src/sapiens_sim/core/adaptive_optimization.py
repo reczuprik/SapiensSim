@@ -130,9 +130,6 @@ class HybridSimulation:
         
         if not np.any(active_mask):
             return
-
-        # --- Aging ---
-        agents['age'][active_mask] += 1
         
         # --- Death from Old Age ---
         old_age_mask = (agents['age'] > max_age) & active_mask
@@ -265,7 +262,8 @@ class HybridSimulation:
             'reproduction_rate', 'gestation_period', 'reproduction_threshold',
             'mating_desire_rate', 'newborn_health', 'newborn_hunger',
             'mother_health_penalty','terrain_cost_plains',
-            'terrain_cost_forest', 'terrain_cost_mountain','max_agent_age', 'fitness_death_penalty'
+            'terrain_cost_forest', 'terrain_cost_mountain','max_agent_age', 'fitness_death_penalty',
+            'tool_decay_on_use', 'shelter_decay_per_tick'
         }
         
         filtered_params = {k: v for k, v in params.items() if k in supported_params}
