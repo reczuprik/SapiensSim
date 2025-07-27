@@ -8,7 +8,7 @@ RESOURCE_REGROWTH_RATE = 0.15
 # --- Population & Simulation ---
 MAX_POPULATION_SIZE = 300
 AGENT_INITIAL_COUNT = 100
-SIMULATION_TICKS = 5000
+SIMULATION_TICKS = 10000
 CULLING_INTERVAL = 100 # How often to clean up dead agents
 
 # --- Agent Biology & Reproduction ---
