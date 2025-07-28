@@ -3,7 +3,7 @@
 
 # Core Simulation Libraries
 numpy
-numba
+numba>=0.58.1
 pytest
 
 # Data Handling & Analysis (for later)

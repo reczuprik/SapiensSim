@@ -1,31 +1,41 @@
-# FILE_NAME: src/sapiens_sim/config.py
-# FIXED: Removed duplicates and inconsistencies
+"""
+Configuration module for SapiensSim
+
+This module contains all configuration parameters and validation logic for the simulation.
+Parameters are grouped into logical sections and can be validated for consistency.
+
+Sections:
+- World Configuration: Basic world parameters
+- Population & Simulation: Core simulation settings
+- Agent Biology & Reproduction: Agent lifecycle parameters
+- Fitness Function Weights: Evolution scoring parameters
+- Terrain & Technology: Environmental factors
+- Optimization Settings: Performance tuning parameters
+"""
 
 # --- World Configuration ---
-WORLD_WIDTH = 200
-WORLD_HEIGHT = 200
-# FIXED: Removed duplicate - using the more challenging value
-RESOURCE_REGROWTH_RATE = 0.05  # Food is scarce and grows back slowly
+WORLD_WIDTH = 200           # Width of the simulation world grid
+WORLD_HEIGHT = 200          # Height of the simulation world grid
+RESOURCE_REGROWTH_RATE = 0.05  # Rate at which food resources regenerate per tick (0-1)
 
 # --- Population & Simulation ---
-MAX_POPULATION_SIZE = 300
-AGENT_INITIAL_COUNT = 100
-SIMULATION_TICKS = 5000
-CULLING_INTERVAL = 100  # How often to clean up dead agents
-# --- Lifespan ---
-MAX_AGENT_AGE = 4000  # Approx 40 "years" if 1 year = 100 ticks
+MAX_POPULATION_SIZE = 300   # Maximum number of agents allowed in simulation
+AGENT_INITIAL_COUNT = 100   # Starting number of agents
+SIMULATION_TICKS = 5000     # Total simulation duration in ticks
+CULLING_INTERVAL = 100      # Frequency of dead agent cleanup
+MAX_AGENT_AGE = 4000        # Maximum agent lifespan in ticks (40 "years" at 100 ticks/year)
 
 # --- Agent Biology & Reproduction (Tuned for more challenge) ---
-MOVE_SPEED = 1.0
-HUNGER_RATE = 0.5           # Daily energy cost
-STARVATION_RATE = 1.5       # Starving is dangerous
-EAT_RATE = 20.0             # Energy from a single meal
-FORAGING_THRESHOLD = 30.0   # FIXED: Added comment - hunger level to start seeking food
-MIN_REPRODUCTION_AGE = 18
-REPRODUCTION_RATE = 0.02
-GESTATION_PERIOD = 20
-REPRODUCTION_THRESHOLD = 40.0  # Max hunger level to be able to reproduce
-MATING_DESIRE_RATE = 0.2
+MOVE_SPEED = 1.0            # Base movement speed of agents
+HUNGER_RATE = 0.5           # Rate at which agents become hungry per tick
+STARVATION_RATE = 1.5       # Health loss rate when starving
+EAT_RATE = 20.0            # Amount of hunger satisfied by one meal
+FORAGING_THRESHOLD = 30.0   # Hunger level that triggers food-seeking behavior
+MIN_REPRODUCTION_AGE = 18   # Minimum age for reproduction
+REPRODUCTION_RATE = 0.02    # Base chance of successful reproduction
+GESTATION_PERIOD = 20       # Time required for pregnancy
+REPRODUCTION_THRESHOLD = 40.0  # Maximum hunger level for reproduction
+MATING_DESIRE_RATE = 0.2    # Rate at which mating desire increases
 
 # --- Newborn Configuration ---
 NEWBORN_HEALTH = 50.0
@@ -51,7 +61,6 @@ TERRAIN_COST_MOUNTAIN = 5.0  # Moving through mountains is extremely costly
 TOOL_DECAY_ON_USE = 2.5     # Tool loses 2.5% of its durability with each use
 SHELTER_DECAY_PER_TICK = 0.1  # Shelter loses 0.1% of its durability each tick
 
-# FIXED: Added optimization configuration section
 # --- Optimization Settings ---
 OPTIMIZATION_THRESHOLDS = {
     'spatial_grid': 50,       # Use spatial grid with 50+ agents
@@ -66,8 +75,18 @@ PERFORMANCE_LOG_INTERVAL = 500  # Log detailed performance every N ticks
 ENABLE_OPTIMIZATION_SWITCHING = True  # Allow dynamic optimization switching
 
 # FIXED: Configuration validation
-def validate_config():
-    """Validate configuration values for common issues"""
+def validate_config() -> tuple[list[str], list[str]]:
+    """
+    Validate configuration parameters for consistency and potential issues.
+    
+    Performs checks for:
+    - Critical errors (invalid parameter values)
+    - Performance warnings (suboptimal configurations)
+    - Logical conflicts between parameters
+    
+    Returns:
+        tuple[list[str], list[str]]: Lists of error and warning messages
+    """
     errors = []
     warnings = []
     
@@ -96,6 +115,33 @@ def validate_config():
     
     return errors, warnings
 
+def get_optimization_config() -> dict:
+    """
+    Get the current optimization configuration.
+    
+    Returns:
+        dict: Dictionary containing optimization thresholds and flags
+    """
+    return {
+        'thresholds': OPTIMIZATION_THRESHOLDS,
+        'enable_logging': ENABLE_PERFORMANCE_LOGGING,
+        'log_interval': PERFORMANCE_LOG_INTERVAL,
+        'enable_switching': ENABLE_OPTIMIZATION_SWITCHING
+    }
+
+def print_config_summary() -> None:
+    """
+    Print a formatted summary of current configuration values.
+    Useful for debugging and verification.
+    """
+    print("\n=== SapiensSim Configuration ===")
+    print(f"World Size: {WORLD_WIDTH}x{WORLD_HEIGHT}")
+    print(f"Initial Population: {AGENT_INITIAL_COUNT}/{MAX_POPULATION_SIZE}")
+    print(f"Simulation Length: {SIMULATION_TICKS} ticks")
+    print("\nOptimization Settings:")
+    for key, value in OPTIMIZATION_THRESHOLDS.items():
+        print(f"  {key}: {value}+ agents")
+
 # Auto-validate on import
 if __name__ != "__main__":
     errors, warnings = validate_config()
@@ -118,5 +164,6 @@ __all__ = [
     'TERRAIN_COST_PLAINS', 'TERRAIN_COST_FOREST', 'TERRAIN_COST_MOUNTAIN',
     'TOOL_DECAY_ON_USE', 'SHELTER_DECAY_PER_TICK',
     'OPTIMIZATION_THRESHOLDS', 'ENABLE_PERFORMANCE_LOGGING', 'PERFORMANCE_LOG_INTERVAL', 
-    'ENABLE_OPTIMIZATION_SWITCHING', 'validate_config'
+    'ENABLE_OPTIMIZATION_SWITCHING', 'validate_config', 'get_optimization_config', 'print_config_summary'
 ]
+

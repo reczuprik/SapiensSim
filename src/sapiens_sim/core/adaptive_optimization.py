@@ -152,15 +152,16 @@ class HybridSimulation:
 
         return agents, world, next_agent_id
 
+    # In HybridSimulation._should_use_optimized_path()
     def _should_use_optimized_path(self, current_population: int) -> bool:
-        """FIXED: Clear decision logic for optimization path"""
-        # Use optimized path if ANY optimization is enabled AND we have the components
-        return (
+        result = (
             (self.current_strategy.get('use_spatial_grid', False) and self.spatial_manager is not None) or
             (self.current_strategy.get('use_batch_neat', False) and self.batch_evaluator is not None) or
-            (self.current_strategy.get('use_vectorized_ops', False) and current_population > 50)
+            (self.current_strategy.get('use_vectorized_ops', False) and current_population > 25)
         )
-
+        
+        
+        return result
     def _handle_aging_and_death(self, agent_manager, max_age: int, death_penalty: float):
         """
         Handles aging and death from old age for all active agents.
@@ -216,12 +217,15 @@ class HybridSimulation:
                 batch_decisions = self.batch_evaluator.make_batch_decisions(
                     agents, world, mate_results, food_results, self.spatial_manager
                 )
+
                 self.performance_stats['batch_evaluations'] += 1
-                
+                active_count = np.sum(agents['health'] > 0)
+
                 # FIXED: Ensure we have decisions for all active agents
-                if len(batch_decisions) < active_count:
+                if len(batch_decisions) < active_count * 0.8:  # At least 80% coverage
                     print(f"Warning: Batch evaluation only returned {len(batch_decisions)} decisions for {active_count} agents")
                     # Fill missing decisions with simple evaluation
+                    
                     missing_decisions = self._simple_decision_making(agent_manager, agents, world, 
                                                                   exclude_indices=set(batch_decisions.keys()))
                     batch_decisions.update(missing_decisions)
@@ -330,19 +334,19 @@ class HybridSimulation:
         
         return decisions
     
+        # In your adaptive_optimization.py - _process_agents method
     def _process_agents(self, agent_manager, agents, world, decisions, next_agent_id, **params):
-        """Process agent actions with selected optimizations - FIXED"""
-        
-        # FIXED: Force vectorized processing for larger populations
         current_population = np.sum(agents['health'] > 0)
-        if (self.current_strategy['use_vectorized_ops'] and current_population > 50):
+        
+        # FORCE vectorized processing for ANY population > 25
+        if current_population > 25:
+            #print(f"🚀 Forcing vectorized processing for {current_population} agents")
             return self._vectorized_agent_processing(agent_manager, agents, world, decisions, next_agent_id, **params)
         else:
             return self._individual_agent_processing(agent_manager, agents, world, decisions, next_agent_id, **params)
     
-    
     def _individual_agent_processing(self, agent_manager, agents, world, decisions, next_agent_id, **params):
-        """Individual agent processing - FIXED parameter filtering"""
+
         # FIXED: Comprehensive parameter filtering to prevent errors
         supported_params = {
             'move_speed', 'hunger_rate', 'starvation_rate', 'foraging_threshold',
@@ -355,7 +359,12 @@ class HybridSimulation:
         }
         
         filtered_params = {k: v for k, v in params.items() if k in supported_params}
-        
+        current_population = np.sum(agents['health'] > 0)
+        if current_population > 25 and hasattr(self, '_vectorized_agent_processing'):
+                print(f"🔄 Redirecting {current_population} agents to vectorized processing")
+                return self._vectorized_agent_processing(agent_manager, agents, world, decisions, next_agent_id, **params)
+            
+        """Individual agent processing - FIXED parameter filtering"""
         from .simulation import simulation_tick
         return simulation_tick(agent_manager, world, next_agent_id, **filtered_params)
 
